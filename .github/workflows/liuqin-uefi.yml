@@ -32,14 +32,6 @@ on:
         type: choice
         options: ["DEBUG", "RELEASE"]
         default: "DEBUG"
-      device_repo:
-        description: "UniXNU-liuqin device repository (owner/name) that carries tools/fetch-liuqin-stock.py"
-        type: string
-        default: ""
-      device_ref:
-        description: "Branch of that repository"
-        type: string
-        default: "liuqin"
 
 permissions:
   contents: read
@@ -59,11 +51,6 @@ jobs:
         with:
           path: uefi-liuqin
           submodules: recursive
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.device_repo || format('{0}/UniXNU-liuqin', github.repository_owner) }}
-          ref: ${{ inputs.device_ref }}
-          path: device
       - name: tools
         working-directory: uefi-liuqin
         run: |
@@ -73,7 +60,7 @@ jobs:
       - name: stock liuqin inputs
         run: |
           set -euo pipefail
-          python3 device/tools/fetch-liuqin-stock.py --package "${OTA_URL}" --out "${RUNNER_TEMP}/stock"
+          python3 uefi-liuqin/scripts/fetch-liuqin-stock.py --package "${OTA_URL}" --out "${RUNNER_TEMP}/stock"
           cp "${RUNNER_TEMP}/stock/liuqin-cape.dtb" uefi-liuqin/Resources/DTBs/liuqin.dtb
           cat "${RUNNER_TEMP}/stock/stock-manifest.json"
       - name: liuqin vendor modules

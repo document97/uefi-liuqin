@@ -1,0 +1,104 @@
+name: liuqin UEFI
+
+# Stage 1 of the Xiaomi Pad 6 Pro (liuqin) bring-up: the Mu-Silicium firmware with the
+# UniXNU boot manager and DarwinBoot, packed as an Android boot v4 image that the stock ABL
+# accepts with `fastboot boot` (RAM only, nothing is flashed).
+#
+# Pass: the tablet leaves the Xiaomi logo for the UniXNU menu on the 1800x2880 panel.
+#
+# The ABL selects the appended DTB by qcom,msm-id/board-id, so the image carries the stock
+# "Cape SoC" base DTB of liuqin's own vendor_boot; it is taken from the Xiaomi full OTA
+# package given as ota_url (range requests only for vendor_boot, uefi and dtbo). With
+# binaries=liuqin the vendor UEFI modules also come from that package's uefi partition
+# instead of the pong SM8475 set.
+#
+# Xiaomi and Qualcomm bytes are not committed. They are in the run's artifact: download it,
+# then delete the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ota_url:
+        description: "https URL of a liuqin full OTA zip (Xiaomi recovery ROM, payload.bin inside)"
+        type: string
+        required: true
+      binaries:
+        description: "Vendor UEFI modules: pong (public SM8475 set) or liuqin (from the OTA uefi partition)"
+        type: choice
+        options: ["pong", "liuqin"]
+        default: "pong"
+      target:
+        description: "EDK II target"
+        type: choice
+        options: ["DEBUG", "RELEASE"]
+        default: "DEBUG"
+      device_repo:
+        description: "UniXNU-liuqin device repository (owner/name) that carries tools/fetch-liuqin-stock.py"
+        type: string
+        default: ""
+      device_ref:
+        description: "Branch of that repository"
+        type: string
+        default: "liuqin"
+
+permissions:
+  contents: read
+
+env:
+  CI_BUILD: true
+  OTA_URL: ${{ inputs.ota_url }}
+  BINARIES: ${{ inputs.binaries }}
+  TARGET: ${{ inputs.target }}
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: uefi-liuqin
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.device_repo || format('{0}/UniXNU-liuqin', github.repository_owner) }}
+          ref: ${{ inputs.device_ref }}
+          path: device
+      - name: tools
+        working-directory: uefi-liuqin
+        run: |
+          set -euo pipefail
+          bash ./setup_env.sh -p apt
+          python3 -m pip install --break-system-packages -r pip-requirements.txt zstandard
+      - name: stock liuqin inputs
+        run: |
+          set -euo pipefail
+          python3 device/tools/fetch-liuqin-stock.py --package "${OTA_URL}" --out "${RUNNER_TEMP}/stock"
+          cp "${RUNNER_TEMP}/stock/liuqin-cape.dtb" uefi-liuqin/Resources/DTBs/liuqin.dtb
+          cat "${RUNNER_TEMP}/stock/stock-manifest.json"
+      - name: liuqin vendor modules
+        if: ${{ inputs.binaries == 'liuqin' }}
+        working-directory: uefi-liuqin
+        run: |
+          set -euo pipefail
+          python3 scripts/import-liuqin-binaries.py --uefi-elf "${RUNNER_TEMP}/stock/uefi.img"
+          sed -i 's/^\(  BINARIES_DEVICE *= *\)pong$/\1liuqin/' Platforms/Xiaomi/liuqinPkg/liuqin.dsc
+          grep -n 'BINARIES_DEVICE  ' Platforms/Xiaomi/liuqinPkg/liuqin.dsc
+      - name: build
+        working-directory: uefi-liuqin
+        run: python3 build_uefi.py -d liuqin -r "${TARGET}"
+      - name: collect
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/liuqin-uefi"
+          mkdir -p "$out"
+          cp uefi-liuqin/Mu-liuqin.img "$out/"
+          cp "uefi-liuqin/Build/liuqinPkg/${TARGET}_CLANGPDB/FV/SILICIUM_UEFI.fd" "$out/"
+          cp "${RUNNER_TEMP}/stock/stock-manifest.json" "$out/"
+          [ -f uefi-liuqin/Binaries/liuqin/manifest.json ] && cp uefi-liuqin/Binaries/liuqin/manifest.json "$out/binaries-manifest.json" || true
+          ( cd "$out" && sha256sum * > SHA256SUMS && cat SHA256SUMS )
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liuqin-uefi-${{ inputs.binaries }}-${{ inputs.target }}
+          path: ${{ runner.temp }}/liuqin-uefi
+          retention-days: 3

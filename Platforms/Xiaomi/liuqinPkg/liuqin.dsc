@@ -34,6 +34,14 @@
   BINARIES_DEVICE                = pong
 
   #
+  # The initrd FAT discovery driver (PongBootMemoryDxe). unixnu passes the value of
+  # board.toml [firmware.defines]; a standalone build_uefi.py build takes this default.
+  #
+!ifndef LIUQIN_INITRD_DISK_ENABLED
+  DEFINE LIUQIN_INITRD_DISK_ENABLED = 1
+!endif
+
+  #
   # 0 = SM8475
   # 1 = SM8475    (Overclocked)
   # 2 = SM7475-AB

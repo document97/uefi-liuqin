@@ -7,10 +7,12 @@ name: liuqin UEFI
 # Pass: the tablet leaves the Xiaomi logo for the UniXNU menu on the 1800x2880 panel.
 #
 # The ABL selects the appended DTB by qcom,msm-id/board-id, so the image carries the stock
-# "Cape SoC" base DTB of liuqin's own vendor_boot; it is taken from the Xiaomi full OTA
-# package given as ota_url (range requests only for vendor_boot, uefi and dtbo). With
-# binaries=liuqin the vendor UEFI modules also come from that package's uefi partition
-# instead of the pong SM8475 set.
+# "Cape SoC" base DTB of liuqin's own vendor_boot. By default it comes from the release
+# stock_release of this repository: an AES-256 7z (password LIUQIN_ARTIFACT_PASSWORD) with
+# liuqin-cape.dtb, uefi.img (uefi.elf) and stock-manifest.json of the build on the tablet,
+# packed from its fastboot ROM. Given ota_url, a Xiaomi full OTA package is read instead
+# (range requests only for vendor_boot, uefi and dtbo). With binaries=liuqin the vendor UEFI
+# modules also come from that uefi.elf instead of the pong SM8475 set.
 #
 # Xiaomi and Qualcomm bytes are not committed. The repository is public, so the run's
 # artifact holds them only inside an AES-256 7z (encrypted file names too) whose password is
@@ -20,10 +22,14 @@ name: liuqin UEFI
 on:
   workflow_dispatch:
     inputs:
-      ota_url:
-        description: "https URL of a liuqin full OTA zip (Xiaomi recovery ROM, payload.bin inside)"
+      stock_release:
+        description: "Release of this repository with the encrypted stock inputs"
         type: string
-        required: true
+        default: "stock-V14.0.9.0.TMYCNXM"
+      ota_url:
+        description: "Optional: https URL of a liuqin full OTA zip instead (Xiaomi recovery ROM, payload.bin inside)"
+        type: string
+        default: ""
       binaries:
         description: "Vendor UEFI modules: pong (public SM8475 set) or liuqin (from the OTA uefi partition)"
         type: choice
@@ -41,6 +47,7 @@ permissions:
 env:
   CI_BUILD: true
   OTA_URL: ${{ inputs.ota_url }}
+  STOCK_RELEASE: ${{ inputs.stock_release }}
   BINARIES: ${{ inputs.binaries }}
   TARGET: ${{ inputs.target }}
 
@@ -68,9 +75,26 @@ jobs:
           bash ./setup_env.sh -p apt
           python3 -m pip install --break-system-packages -r pip-requirements.txt zstandard
       - name: stock liuqin inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 uefi-liuqin/scripts/fetch-liuqin-stock.py --package "${OTA_URL}" --out "${RUNNER_TEMP}/stock"
+          if [ -n "${OTA_URL}" ]; then
+            python3 uefi-liuqin/scripts/fetch-liuqin-stock.py --package "${OTA_URL}" --out "${RUNNER_TEMP}/stock"
+          else
+            gh release download "${STOCK_RELEASE}" -R "${GITHUB_REPOSITORY}" -p '*.7z' -D "${RUNNER_TEMP}/dl"
+            7z x -y "-p${ARTIFACT_PASSWORD}" "-o${RUNNER_TEMP}/stock" "${RUNNER_TEMP}"/dl/*.7z > /dev/null
+            python3 - "${RUNNER_TEMP}/stock" <<'EOF'
+          import hashlib, json, sys
+          from pathlib import Path
+          d = Path(sys.argv[1])
+          m = json.loads((d / "stock-manifest.json").read_text())
+          for name, want in m["files"].items():
+              got = hashlib.sha256((d / name).read_bytes()).hexdigest()
+              assert got == want["sha256"], f"{name}: {got} != {want['sha256']}"
+          print(f"stock {m['build']}: {', '.join(m['files'])} verified")
+          EOF
+          fi
           cp "${RUNNER_TEMP}/stock/liuqin-cape.dtb" uefi-liuqin/Resources/DTBs/liuqin.dtb
           cat "${RUNNER_TEMP}/stock/stock-manifest.json"
       - name: liuqin vendor modules

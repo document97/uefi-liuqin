@@ -24,6 +24,7 @@ import re
 import struct
 import sys
 import lzma
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,6 +40,9 @@ SECTION_FV_IMAGE = 0x17
 SECTION_RAW = 0x19
 FFS_PAD = 0xF0
 LZMA_GUID = "EE4E5898-3914-4259-9D6E-DC7BD79403CF"
+# Qualcomm's guided section for gzip; the SM8475 uefi.elf of liuqin wraps both of its
+# nested firmware volumes in it (payload starts 1f 8b).
+GZIP_GUID = "1D301FE9-BE79-4353-91C2-D23BC959AE0C"
 
 
 def guid_str(raw: bytes) -> str:
@@ -93,6 +97,8 @@ def sections(data: bytes, mod: Module, modules: dict) -> None:
             payload = body[data_off:]
             if g == LZMA_GUID:
                 sections(lzma_decompress(payload), mod, modules)
+            elif g == GZIP_GUID:
+                sections(zlib.decompress(payload, 31), mod, modules)
             else:
                 sections(payload, mod, modules)
         elif stype == SECTION_COMPRESSION:

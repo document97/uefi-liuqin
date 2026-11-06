@@ -103,5 +103,8 @@ APRIORI DXE {
   INF MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
   INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
 
+  # The stock liuqin uefi.elf (V14.0.9.0.TMYCNXM) has no BootloaderLoggingDxe.
+!if $(BINARIES_DEVICE) == pong
   INF Binaries/$(BINARIES_DEVICE)/QcomPkg/Drivers/BootloaderLoggingDxe/BootloaderLoggingDxe.inf
+!endif
 }

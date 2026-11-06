@@ -1,0 +1,19 @@
+## @file
+#  Xiaomi Pad 6 Pro (liuqin, SM8475) platform package.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  DEC_SPECIFICATION                   = 0x00010005
+  PACKAGE_NAME                        = liuqinPkg
+  PACKAGE_GUID                        = 58CB8227-94CC-46C3-991A-574007556732
+  PACKAGE_VERSION                     = 0.1
+
+[Includes]
+  Include                              # Root Include for the Package
+
+[Guids]
+  ## Package token space. Same value as PLATFORM_GUID in liuqin.dsc.
+  gLiuqinPkgTokenSpaceGuid            = { 0x58CB8227, 0x94CC, 0x46C3, { 0x99, 0x1A, 0x57, 0x40, 0x07, 0x55, 0x67, 0x32 } }

@@ -1,0 +1,28 @@
+#
+# Boot Shim Configs
+#
+[boot_shim]
+requires_kernel_header = true
+
+#
+# UEFI FD Configs
+#
+[uefi_fd]
+# Inside the stock 4 MiB "UEFI FD" window 0xA7000000 of liuqin's uefiplat.cfg
+# (OS3.0.7.0.VMYCNXM), the same placement as pong and sheng.
+base = 0xA7100000
+size = 0x300000
+
+#
+# Android Boot Image Kernel Configs
+#
+[boot_image_kernel]
+kernel_compression = "gzip"
+append_dtb         = true
+
+#
+# Android Boot Image Configs
+#
+[boot_image]
+# The stock liuqin boot.img is header v4 (header_size 1584, 4096-byte pages).
+header_version = 4

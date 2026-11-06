@@ -12,8 +12,10 @@ name: liuqin UEFI
 # binaries=liuqin the vendor UEFI modules also come from that package's uefi partition
 # instead of the pong SM8475 set.
 #
-# Xiaomi and Qualcomm bytes are not committed. They are in the run's artifact: download it,
-# then delete the run.
+# Xiaomi and Qualcomm bytes are not committed. The repository is public, so the run's
+# artifact holds them only inside an AES-256 7z (encrypted file names too) whose password is
+# the repository secret LIUQIN_ARTIFACT_PASSWORD; the run stops before building without it.
+# Extract with `7z x liuqin-uefi.7z`, then delete the run.
 
 on:
   workflow_dispatch:
@@ -46,7 +48,15 @@ jobs:
   firmware:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      ARTIFACT_PASSWORD: ${{ secrets.LIUQIN_ARTIFACT_PASSWORD }}
     steps:
+      - name: artifact password
+        run: |
+          if [ "${#ARTIFACT_PASSWORD}" -lt 12 ]; then
+            echo "::error::Set the repository secret LIUQIN_ARTIFACT_PASSWORD (12+ characters) first; the artifact carries vendor files and is only uploaded encrypted."
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           path: uefi-liuqin
@@ -84,8 +94,13 @@ jobs:
           cp "${RUNNER_TEMP}/stock/stock-manifest.json" "$out/"
           [ -f uefi-liuqin/Binaries/liuqin/manifest.json ] && cp uefi-liuqin/Binaries/liuqin/manifest.json "$out/binaries-manifest.json" || true
           ( cd "$out" && sha256sum * > SHA256SUMS && cat SHA256SUMS )
+          mkdir -p "${RUNNER_TEMP}/upload"
+          ( cd "$out" && 7z a -t7z -mx=9 -mhe=on "-p${ARTIFACT_PASSWORD}" "${RUNNER_TEMP}/upload/liuqin-uefi.7z" . > /dev/null )
+          7z t "-p${ARTIFACT_PASSWORD}" "${RUNNER_TEMP}/upload/liuqin-uefi.7z" | tail -3
+          rm -rf "$out"
       - uses: actions/upload-artifact@v4
         with:
           name: liuqin-uefi-${{ inputs.binaries }}-${{ inputs.target }}
-          path: ${{ runner.temp }}/liuqin-uefi
-          retention-days: 3
+          path: ${{ runner.temp }}/upload/liuqin-uefi.7z
+          compression-level: 0
+          retention-days: 1

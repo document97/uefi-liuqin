@@ -1,5 +1,8 @@
 name: liuqin UEFI
 
+# workflow_dispatch only appears once GitHub has indexed this file on the branch that
+# carries it, so the first push after the file was created is what registers it.
+
 # Stage 1 of the Xiaomi Pad 6 Pro (liuqin) bring-up: the Mu-Silicium firmware with the
 # UniXNU boot manager and DarwinBoot, packed as an Android boot v4 image that the stock ABL
 # accepts with `fastboot boot` (RAM only, nothing is flashed).
